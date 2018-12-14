@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+	<meta http-equiv='Content-Type' content='text/html; charset=UTF-8' />
+
+	<title>Italian Serie : A Data Visualization</title>
+
+	<style>
+  svg {
+    font: 10px sans-serif;
+    padding: 10px;
+  }
+
+  .axis,
+  .frame {
+    shape-rendering: crispEdges;
+  }
+
+  .axis line {
+    stroke: #ddd;
+  }
+
+  .axis path {
+    display: none;
+  }
+
+  .cell text {
+    font-weight: bold;
+    text-transform: capitalize;
+    fill: black;
+  }
+
+  .frame {
+    fill: none;
+    stroke: #aaa;
+  }
+
+  circle {
+    fill-opacity: 1;
+  }
+
+  circle.hidden {
+    fill: #ccc !important;
+  }
+
+  .extent {
+    fill: #000;
+    fill-opacity: .125;
+    stroke: #fff;
+  }
+
+  div.tooltip{
+    position: absolute;
+    text-align: center;
+    width: 120px;
+    height: 60px;
+    padding: 2px;
+    font: 12px sans-serif;
+    background: #FFA500;
+    font-weight: bold;
+    border-radius: 15px;
+    pointer-events: none;
+  }
+</style>
+
+
+		<script src="https://d3js.org/d3.v5.js"></script>
+</head>
+
+<body>
+
+
+	<div id="page-wrap">
+
+        <header>
+		  <h1>Italian Serie : A Data Visualization</h1>
+
+		  <nav>
+		      <ul class="group">
+						<li><a href="index.html">Visualize Shot Data</a></li>
+						<li><a href="match.html">Visualize Match Goals</a></li>
+						<li><a href="foul.html">Visualize Foul Data</a></li>
+		      </ul>
+		  </nav>
+		</header>
+
+		<section id="main-content">
+
+
+<h1>Visualisation of the Foul Data</h1>
+
+
+<script>
+	// Visualisation uses Mike Bostock's "Scatterplot Matrix Brushing"
+	// https://bl.ocks.org/mbostock/4063663 as a guide.
+	var width = 800,
+			size = 260,
+			padding = 20;
+
+	var x = d3.scaleLinear()
+			.range([padding / 2, size - padding / 2]);
+
+	var y = d3.scaleLinear()
+			.range([size - padding / 2, padding / 2]);
+
+	var xAxis = d3.axisBottom()
+			.scale(x)
+			.ticks(8);
+
+	var yAxis = d3.axisLeft()
+			.scale(y)
+			.ticks(8);
+
+	var colour = d3.scaleOrdinal()
+			.range(["#e6194b", "#3cb44b", "#ffe119",
+							"#4363d8", "#f58231", "#911eb4",
+							"#46f0f0", "#f032e6", "#bcf60c",
+							"#fabebe", "#008080", "#e6beff",
+							"#9a6324", "#fffac8", "#800000",
+							"#aaffc3", "#808000", "#ffd8b1",
+							"#000075", "#808080"]);
+
+	var div = d3.select("body").append("div")
+			.attr("class", "tooltip")
+			.style("opacity", 0);
+
+	d3.csv("I1.csv").then(function(data){
+		// gets an array of the home team foul data
+		var homeData = data.map(function(d){
+			return{
+				team: d.HomeTeam,
+				fouls: +d.HF,
+				yellowCards: +d.HY,
+				redCards: +d.HR
+			}
+		});
+		// gets an array of the away team foul data
+		var awayData = data.map(function(d){
+			return{
+				team: d.AwayTeam,
+				fouls: +d.AF,
+				yellowCards: +d.AY,
+				redCards: +d.AR
+			}
+		});
+		// sorts the arrays in ascending order (a-z)
+		homeData.sort(function(a, b){
+			return d3.ascending(a.team, b.team);
+		});
+		awayData.sort(function(a, b){
+			return d3.ascending(a.team, b.team);
+		});
+		// initialises an array for storing summed home and away values
+		var mergedData = [];
+		// sums and filters all home data by team
+		homeData.reduce(function(res, value){
+			if(!res[value.team]){
+				res[value.team] = {
+					team: value.team,
+					fouls: 0,
+					yellowCards: 0,
+					redCards: 0
+				};
+				// adds the values to the array
+				mergedData.push(res[value.team])
+			}
+			// sums data for each team
+			res[value.team].fouls += value.fouls
+			res[value.team].yellowCards += value.yellowCards
+			res[value.team].redCards += value.redCards
+			return res;
+		}, {});
+		// sums and filters all away data by team
+		awayData.reduce(function(res, value){
+			if(!res[value.team]){
+				res[value.team] = {
+					team: value.team,
+					fouls: 0,
+					yellowCards: 0,
+					redCards: 0
+				};
+				// adds the values to the array
+				mergedData.push(res[value.team])
+			}
+			// sums data for each team
+			res[value.team].fouls += value.fouls
+			res[value.team].yellowCards += value.yellowCards
+			res[value.team].redCards += value.redCards
+			return res;
+		}, {});
+		// initialises an array for storing combined and summed team values
+		var allData = [];
+		// sums and filters all data by team
+		mergedData.reduce(function(res, value){
+			if(!res[value.team]){
+				res[value.team] = {
+					team: value.team,
+					fouls: 0,
+					yellowCards: 0,
+					redCards: 0
+				};
+				// adds the values to the array
+				allData.push(res[value.team])
+			}
+			res[value.team].fouls += value.fouls
+			res[value.team].yellowCards += value.yellowCards
+			res[value.team].redCards += value.redCards
+			return res;
+		}, {});
+
+		var domainByType = {},
+				types = d3.keys(allData[0]).filter(function(d){return d !== "team";}),
+				n = types.length;
+
+		types.forEach(function(type){
+			domainByType[type] = d3.extent(allData, function(d){return d[type];});
+		});
+		xAxis.tickSize(size * n);
+		yAxis.tickSize(-size * n);
+
+		var svg = d3.select("body").append("svg")
+				.attr("width", size * n + padding)
+				.attr("height", size * n + padding)
+			.append("g")
+				.attr("transform", "translate(" + padding + "," + padding / 2 + ")");
+
+		svg.selectAll(".x.axis")
+				.data(types)
+			.enter().append("g")
+				.attr("class", "x axis")
+				.attr("transform", function(d, i) { return "translate(" + (n - i - 1) * size + ",0)"; })
+				.each(function(d){x.domain(domainByType[d]); d3.select(this).call(xAxis);});
+
+		svg.selectAll(".y.axis")
+				.data(types)
+			.enter().append("g")
+				.attr("class", "y axis")
+				.attr("transform", function(d, i) { return "translate(0," + i * size + ")";})
+				.each(function(d){y.domain(domainByType[d]); d3.select(this).call(yAxis);});
+
+		var cell = svg.selectAll(".cell")
+				.data(cross(types, types))
+			.enter().append("g")
+				.attr("class", "cell")
+				.attr("transform", function(d) { return "translate(" + (n - d.i - 1) * size + "," + d.j * size + ")"; })
+				.each(plot);
+
+		cell.filter(function(d){return d.i === d.j;}).append("text")
+				.attr("x", padding)
+				.attr("y", padding)
+				.attr("dy", ".71em")
+				.text(function(d){return d.x;});
+
+		function plot(p){
+			var cell = d3.select(this);
+
+			x.domain(domainByType[p.x]);
+			y.domain(domainByType[p.y]);
+
+			cell.append("rect")
+					.attr("class", "frame")
+					.attr("x", padding / 2)
+					.attr("y", padding / 2)
+					.attr("width", size - padding)
+					.attr("height", size - padding);
+
+			cell.selectAll("circle")
+					.data(allData)
+				.enter().append("circle")
+					.attr("cx", function(d){return x(d[p.x]);})
+					.attr("cy", function(d){return y(d[p.y]);})
+					.attr("r", 4)
+					.style("fill", function(d){return colour(d.team);})
+					.on("mouseover", function(d){
+						div.transition()
+								.style("opacity", 0.9);
+						div .html("Team: " + d.team + "<br/>" +
+											"Fouls: " + d.fouls + "<br/>" +
+											"Yellow-Cards: " + d.yellowCards + "<br/>" +
+											"Red-Cards: " + d.redCards)
+								.style("left", (d3.event.pageX) + "px")
+								.style("top", (d3.event.pageY - 28) + "px");
+						})
+						.on("mouseout", function(d){
+							div.transition()
+								.duration(500)
+								.style("opacity", 0);
+						});
+			}
+
+	}).catch(console.log.bind(console));
+
+function cross(a, b){
+var c = [], n = a.length, m = b.length, i, j;
+for(i = -1; ++i < n;) for (j = -1; ++j < m;) c.push({x: a[i], i: i, y: b[j], j: j});
+return c;
+}
+</script>
+
+
+		</section>
+
+	</div>
+
+
+
+
+</body>
+
+</html>
